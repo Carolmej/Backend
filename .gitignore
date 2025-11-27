@@ -1,0 +1,39 @@
+# NODE & DEPENDENCIES
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ENVIRONMENT VARIABLES (NO SUBIR)
+.env
+.env.local
+.env.*.local
+
+# LOGS
+logs/
+*.log
+debug.log
+
+# BUILD / CACHE
+dist/
+build/
+.cache/
+.eslintcache
+
+# OS FILES
+.DS_Store
+Thumbs.db
+
+# SQLITE PROJECT DBs (GENERADAS)
+# NO SE SUBEN AL REPOSITORIO
+projects/*.db
+
+# TEMP FILES
+tmp/
+temp/
+*.tmp
+
+# EDITOR CONFIG
+.vscode/
+.idea/
