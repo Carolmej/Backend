@@ -35,7 +35,7 @@ project.post('/', adminAuth, async (req, res) => {
         }
     } else return res.status(400).json({ message: 'Incomplete data' });
 });
-//Get all projects
+// Get all projects
 project.get('/', async (req, res) => {
     let conn;
     try {
@@ -53,14 +53,16 @@ project.get('/', async (req, res) => {
         if (conn) conn.release();
     }
 });
-//Get projects by ID
+
+// Get project by ID
 project.get('/:id', async (req, res) => {
     const { id } = req.params;
     let conn;
     try {
         conn = await pool.connect();
         const result = await conn.query(`
-            SELECT p.*, u.name AS leader_name
+            SELECT p.id, p.name, p.description, p.client_id, p.team_leader_id, 
+                   p.start, p.end, u.name AS leader_name
             FROM projects p
             JOIN users u ON p.team_leader_id = u.id
             WHERE p.id = $1;
@@ -75,48 +77,61 @@ project.get('/:id', async (req, res) => {
         if (conn) conn.release();
     }
 });
-//Update Project
+
+// Update project
 project.put('/:id', adminAuth, async (req, res) => {
     const { id } = req.params;
     const { name, description, client_id, team_leader_id, start, end } = req.body;
-    if (!name || !description || !client_id || !team_leader_id || !start || !end)
-        return res.status(400).json({ message: "Incomplete data" });
-    let conn;
-    try {
-        conn = await pool.connect();
-        const result = await conn.query(`
-            UPDATE projects
-            SET name = $1, description = $2, client_id = $3,
-                team_leader_id = $4, start = $5, end = $6
-            WHERE id = $7;
-        `, [name, description, client_id, team_leader_id, start, end, id]);
-        if (result.rowCount === 0)
-            return res.status(404).json({ message: 'Project not found' });
-        return res.status(200).json({ message: 'Project updated successfully' });
-    } catch (error) {
-        return errorHandler(error, res);
-    } finally {
-        if (conn) conn.release();
-    }
+
+    if (name && description && client_id && team_leader_id && start && end) {
+        let conn;
+        try {
+            conn = await pool.connect();
+            const result = await conn.query(`
+                UPDATE projects
+                SET name = $1, description = $2, client_id = $3,
+                    team_leader_id = $4, start = $5, end = $6
+                WHERE id = $7;
+            `, [name, description, client_id, team_leader_id, start, end, id]);
+
+            if (result.rowCount === 0)
+                return res.status(404).json({ message: 'Project not found' });
+
+            return res.status(200).json({ message: 'Project updated successfully' });
+        } catch (error) {
+            return errorHandler(error, res);
+        } finally {
+            if (conn) conn.release();
+        }
+
+    } else return res.status(400).json({ message: 'Incomplete data' });
 });
-// Delete Proyect
+
+// Delete project
 project.delete('/:id', adminAuth, async (req, res) => {
     const { id } = req.params;
     let conn;
     try {
         conn = await pool.connect();
         conn.query('BEGIN;');
+
         const result = await conn.query(`
             SELECT sqlite_file FROM projects WHERE id = $1;
         `, [id]);
+
         if (result.rows.length === 0)
             return res.status(404).json({ message: 'Project not found' });
+
         const sqliteFile = `./projects/${result.rows[0].sqlite_file}`;
+
         await conn.query(`DELETE FROM projects WHERE id = $1;`, [id]);
         conn.query('COMMIT;');
+
         if (fs.existsSync(sqliteFile))
             fs.unlinkSync(sqliteFile);
+
         return res.status(200).json({ message: 'Project deleted successfully' });
+
     } catch (error) {
         conn.query('ROLLBACK;');
         return errorHandler(error, res);
@@ -124,5 +139,5 @@ project.delete('/:id', adminAuth, async (req, res) => {
         if (conn) conn.release();
     }
 });
-//---------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------
 export default project;

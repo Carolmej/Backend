@@ -5,164 +5,140 @@ import errorHandler from '../middleware/errorHandler.js';
 
 const tasks = express.Router();
 
-// Helper: Get SQLite DB for project
-function getDB(projectId) {
-    return openDB(`./projects/${projectId}`);
-}
-
-// Helper: verify if project exists
-async function projectExists(projectId) {
-    const conn = await pool.connect();
-    const result = await conn.query(
-        "SELECT id FROM projects WHERE id = $1",
-        [projectId]
-    );
-    conn.release();
-    return result.rows.length > 0;
-}
-
-// Create a new task
-tasks.post('/:projectId', async (req, res) => {
-    const { projectId } = req.params;
+// Create task
+tasks.post('/:project_id', async (req, res) => {
+    const { project_id } = req.params;
     const { module_id, title, description, priority, status, user_ids } = req.body;
 
-    if (!title)
-        return res.status(400).json({ message: "Title required" });
+    if (project_id && title) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
+            db.prepare(`
+                INSERT INTO tasks (module_id, title, description, priority, status, user_ids)
+                VALUES (?, ?, ?, ?, ?, ?);
+            `).run(module_id || null, title, description || "", priority || "", status || "pending", user_ids || null);
 
-    try {
-        if (!(await projectExists(projectId)))
-            return res.status(404).json({ message: "Project not found" });
+            return res.status(201).json({ message: 'Task created successfully' });
 
-        const db = getDB(projectId);
+        } catch (error) {
+            return errorHandler(error, res);
+        } finally {
+            if (db) db.close();
+        }
 
-        db.prepare(`
-            INSERT INTO tasks (module_id, title, description, priority, status, user_ids)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(module_id || null, title, description || "", priority || "", status || "pending", user_ids || null);
-
-        return res.status(201).json({ message: "Task created" });
-
-    } catch (error) {
-        return errorHandler(error, res);
-    }
+    } else return res.status(400).json({ message: 'Incomplete data' });
 });
 
-// View all  tasks
-tasks.get('/:projectId', async (req, res) => {
-    const { projectId } = req.params;
-
+// Get all tasks
+tasks.get('/:project_id', async (req, res) => {
+    const { project_id } = req.params;
+    let db;
     try {
-        if (!(await projectExists(projectId)))
-            return res.status(404).json({ message: "Project not found" });
-
-        const db = getDB(projectId);
-
-        const rows = db.prepare(`SELECT * FROM tasks ORDER BY created_at DESC`).all();
-
+        db = openDB('./projects/' + project_id);
+        const rows = db.prepare(`SELECT * FROM tasks ORDER BY created_at DESC;`).all();
         return res.status(200).json(rows);
 
     } catch (error) {
         return errorHandler(error, res);
+    } finally {
+        if (db) db.close();
     }
 });
 
-// List of tasks by module
-tasks.get('/:projectId/module/:moduleId', async (req, res) => {
-    const { projectId, moduleId } = req.params;
-
+// Get task by ID
+tasks.get('/:project_id/:task_id', async (req, res) => {
+    const { project_id, task_id } = req.params;
+    let db;
     try {
-        if (!(await projectExists(projectId)))
-            return res.status(404).json({ message: "Project not found" });
+        db = openDB('./projects/' + project_id);
+        const row = db.prepare(`SELECT * FROM tasks WHERE id = ?;`).get(task_id);
 
-        const db = getDB(projectId);
+        if (!row)
+            return res.status(404).json({ message: 'Task not found' });
 
-        const rows = db.prepare(`SELECT * FROM tasks WHERE module_id = ?`).all(moduleId);
-
-        return res.status(200).json(rows);
+        return res.status(200).json(row);
 
     } catch (error) {
         return errorHandler(error, res);
+    } finally {
+        if (db) db.close();
     }
 });
 
-// Obtener una tarea
-tasks.get('/:projectId/task/:taskId', async (req, res) => {
-    const { projectId, taskId } = req.params;
+// Update task
+tasks.put('/:project_id/:task_id', async (req, res) => {
+    const { project_id, task_id } = req.params;
+    const { module_id, title, description, priority, status, user_ids } = req.body;
 
-    try {
-        const db = getDB(projectId);
+    if (title && status) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
 
-        const task = db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(taskId);
+            const exists = db.prepare(`SELECT id FROM tasks WHERE id = ?;`).get(task_id);
+            if (!exists)
+                return res.status(404).json({ message: 'Task not found' });
 
-        if (!task)
-            return res.status(404).json({ message: "Task not found" });
+            db.prepare(`
+                UPDATE tasks 
+                SET module_id = ?, title = ?, description = ?, priority = ?, status = ?, user_ids = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?;
+            `).run(module_id, title, description, priority, status, user_ids, task_id);
 
-        return res.status(200).json(task);
+            return res.status(200).json({ message: 'Task updated successfully' });
 
-    } catch (error) {
-        return errorHandler(error, res);
-    }
+        } catch (error) {
+            return errorHandler(error, res);
+        } finally {
+            if (db) db.close();
+        }
+
+    } else return res.status(400).json({ message: "Incomplete data" });
 });
 
-// Update task 
-tasks.put('/:projectId/task/:taskId', async (req, res) => {
-    const { projectId, taskId } = req.params;
-    const { title, description, priority, status, user_ids, module_id } = req.body;
-
-    try {
-        const db = getDB(projectId);
-
-        const exists = db.prepare(`SELECT id FROM tasks WHERE id = ?`).get(taskId);
-        if (!exists)
-            return res.status(404).json({ message: "Task not found" });
-
-        db.prepare(`
-            UPDATE tasks
-            SET title = ?, description = ?, priority = ?, status = ?, user_ids = ?, module_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(title, description, priority, status, user_ids, module_id, taskId);
-
-        return res.status(200).json({ message: "Task updated" });
-
-    } catch (error) {
-        return errorHandler(error, res);
-    }
-});
-
-// Change task status
-tasks.patch('/:projectId/task/:taskId/status', async (req, res) => {
-    const { projectId, taskId } = req.params;
+// Update task status
+tasks.patch('/:project_id/:task_id/status', async (req, res) => {
+    const { project_id, task_id } = req.params;
     const { status } = req.body;
 
-    if (!status)
-        return res.status(400).json({ message: "Status required" });
+    if (status) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
 
-    try {
-        const db = getDB(projectId);
+            db.prepare(`
+                UPDATE tasks 
+                SET status = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?;
+            `).run(status, task_id);
 
-        db.prepare(`
-            UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-        `).run(status, taskId);
+            return res.status(200).json({ message: 'Status updated successfully' });
 
-        return res.status(200).json({ message: "Status updated" });
+        } catch (error) {
+            return errorHandler(error, res);
+        } finally {
+            if (db) db.close();
+        }
 
-    } catch (error) {
-        return errorHandler(error, res);
-    }
+    } else return res.status(400).json({ message: "Incomplete data" });
 });
 
-// Eliminate tasks
-tasks.delete('/:projectId/task/:taskId', async (req, res) => {
-    const { projectId, taskId } = req.params;
-
+// Delete task
+tasks.delete('/:project_id/:task_id', async (req, res) => {
+    const { project_id, task_id } = req.params;
+    let db;
     try {
-        const db = getDB(projectId);
-        db.prepare(`DELETE FROM tasks WHERE id = ?`).run(taskId);
+        db = openDB('./projects/' + project_id);
 
-        return res.status(200).json({ message: "Task deleted" });
+        db.prepare(`DELETE FROM tasks WHERE id = ?;`).run(task_id);
+
+        return res.status(200).json({ message: 'Task deleted successfully' });
 
     } catch (error) {
         return errorHandler(error, res);
+    } finally {
+        if (db) db.close();
     }
 });
 

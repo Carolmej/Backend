@@ -81,11 +81,11 @@ user.post('/login', async (req, res) => {
         //Validar contraseña
         const bcryptCompare = await bcrypt.compare(password, user.password_hash);
         if (!bcryptCompare)
-            return res.status(401).json({ message: 'Incorrect password' });
+            return res.status(401).json({ message: 'Incorrect credencials' });
 
         //Validar si la cuenta está activa
         if (!user.active)
-            return res.status(403).json({ message: 'Account inactive, please reset your password' });
+            return res.status(401).json({ message: 'Forviden NO permises' });
 
         //Crear token JWT
         const token = jwt.sign(

@@ -1,184 +1,192 @@
 import express from 'express';
-import pool from '../config/DBManager.js';
 import { openDB } from '../config/SQLiteManager.js';
 import errorHandler from '../middleware/errorHandler.js';
 
 const teams = express.Router();
 
-// Helper: obtener la bd sqlite del proyecto
-function getDB(projectId) {
-    return openDB(`./projects/${projectId}`);
-}
-
-// Helper: verify if project exists
-async function projectExists(projectId) {
-    const conn = await pool.connect();
-    const result = await conn.query("SELECT id FROM projects WHERE id = $1", [projectId]);
-    conn.release();
-    return result.rows.length > 0;
-}
-
-// Create a new team
-teams.post('/:projectId', async (req, res) => {
-    const { projectId } = req.params;
+// Create team
+teams.post('/:project_id', async (req, res) => {
+    const { project_id } = req.params;
     const { name, description } = req.body;
 
-    if (!name)
-        return res.status(400).json({ message: "Name required" });
+    if (project_id && name) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
 
-    try {
-        if (!(await projectExists(projectId)))
-            return res.status(404).json({ message: "Project not found" });
+            db.prepare(`
+                INSERT INTO teams (name, description)
+                VALUES (?, ?);
+            `).run(name, description || "");
 
-        const db = getDB(projectId);
+            return res.status(201).json({ message: 'Team created successfully' });
 
-        db.prepare(`
-            INSERT INTO teams (name, description)
-            VALUES (?, ?)
-        `).run(name, description || "");
+        } catch (error) {
+            return errorHandler(error, res);
 
-        return res.status(201).json({ message: "Team created" });
+        } finally {
+            if (db) db.close();
+        }
 
-    } catch (error) {
-        errorHandler(error, res);
-    }
+    } else return res.status(400).json({ message: 'Incomplete data' });
 });
 
-// Listar equipos
-teams.get('/:projectId', async (req, res) => {
-    const { projectId } = req.params;
+// Get all teams
+teams.get('/:project_id', async (req, res) => {
+    const { project_id } = req.params;
 
+    let db;
     try {
-        const db = getDB(projectId);
+        db = openDB('./projects/' + project_id);
 
-        const rows = db.prepare(`SELECT * FROM teams`).all();
+        const rows = db.prepare(`
+            SELECT * FROM teams;
+        `).all();
 
         return res.status(200).json(rows);
 
     } catch (error) {
-        errorHandler(error, res);
+        return errorHandler(error, res);
+
+    } finally {
+        if (db) db.close();
     }
 });
 
-// Obtener un equipo
-teams.get('/:projectId/:teamId', async (req, res) => {
-    const { projectId, teamId } = req.params;
+// Get team by id
+teams.get('/:project_id/:team_id', async (req, res) => {
+    const { project_id, team_id } = req.params;
 
+    let db;
     try {
-        const db = getDB(projectId);
+        db = openDB('./projects/' + project_id);
 
-        const team = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(teamId);
+        const row = db.prepare(`
+            SELECT * FROM teams WHERE id = ?;
+        `).get(team_id);
 
-        if (!team)
-            return res.status(404).json({ message: "Team not found" });
+        if (!row)
+            return res.status(404).json({ message: 'Team not found' });
 
-        return res.status(200).json(team);
+        return res.status(200).json(row);
 
     } catch (error) {
-        errorHandler(error, res);
+        return errorHandler(error, res);
+
+    } finally {
+        if (db) db.close();
     }
 });
 
-// Edit team
-teams.put('/:projectId/:teamId', async (req, res) => {
-    const { projectId, teamId } = req.params;
+// Update team
+teams.put('/:project_id/:team_id', async (req, res) => {
+    const { project_id, team_id } = req.params;
     const { name, description } = req.body;
 
-    try {
-        const db = getDB(projectId);
+    if (name) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
 
-        const exists = db.prepare(`SELECT id FROM teams WHERE id = ?`).get(teamId);
-        if (!exists)
-            return res.status(404).json({ message: "Team not found" });
+            const exists = db.prepare(`
+                SELECT id FROM teams WHERE id = ?;
+            `).get(team_id);
 
-        db.prepare(`
-            UPDATE teams
-            SET name = ?, description = ?
-            WHERE id = ?
-        `).run(name, description, teamId);
+            if (!exists)
+                return res.status(404).json({ message: 'Team not found' });
 
-        return res.status(200).json({ message: "Team updated" });
+            db.prepare(`
+                UPDATE teams
+                SET name = ?, description = ?
+                WHERE id = ?;
+            `).run(name, description, team_id);
 
-    } catch (error) {
-        errorHandler(error, res);
-    }
+            return res.status(200).json({ message: 'Team updated successfully' });
+
+        } catch (error) {
+            return errorHandler(error, res);
+
+        } finally {
+            if (db) db.close();
+        }
+
+    } else return res.status(400).json({ message: 'Incomplete data' });
 });
 
 // Delete team
-teams.delete('/:projectId/:teamId', async (req, res) => {
-    const { projectId, teamId } = req.params;
+teams.delete('/:project_id/:team_id', async (req, res) => {
+    const { project_id, team_id } = req.params;
 
+    let db;
     try {
-        const db = getDB(projectId);
-
-        db.prepare(`DELETE FROM teams WHERE id = ?`).run(teamId);
-        db.prepare(`DELETE FROM teammembers WHERE team_id = ?`).run(teamId);
-
-        return res.status(200).json({ message: "Team deleted" });
-
-    } catch (error) {
-        errorHandler(error, res);
-    }
-});
-
-// Add member to team
-teams.post('/:projectId/:teamId/member', async (req, res) => {
-    const { projectId, teamId } = req.params;
-    const { user_id } = req.body;
-
-    if (!user_id)
-        return res.status(400).json({ message: "User id required" });
-
-    try {
-        const db = getDB(projectId);
+        db = openDB('./projects/' + project_id);
 
         db.prepare(`
-            INSERT INTO teammembers (team_id, user_id)
-            VALUES (?, ?)
-        `).run(teamId, user_id);
+            DELETE FROM teams WHERE id = ?;
+        `).run(team_id);
 
-        return res.status(201).json({ message: "Member added" });
+        db.prepare(`
+            DELETE FROM teammembers WHERE team_id = ?;
+        `).run(team_id);
+
+        return res.status(200).json({ message: 'Team deleted successfully' });
 
     } catch (error) {
-        errorHandler(error, res);
+        return errorHandler(error, res);
+
+    } finally {
+        if (db) db.close();
     }
 });
 
-// Delete member from team
-teams.delete('/:projectId/:teamId/member/:userId', async (req, res) => {
-    const { projectId, teamId, userId } = req.params;
+// Add user to team
+teams.post('/:project_id/:team_id/member', async (req, res) => {
+    const { project_id, team_id } = req.params;
+    const { user_id } = req.body;
 
+    if (user_id) {
+        let db;
+        try {
+            db = openDB('./projects/' + project_id);
+
+            db.prepare(`
+                INSERT INTO teammembers (team_id, user_id)
+                VALUES (?, ?);
+            `).run(team_id, user_id);
+
+            return res.status(201).json({ message: 'Member added successfully' });
+
+        } catch (error) {
+            return errorHandler(error, res);
+
+        } finally {
+            if (db) db.close();
+        }
+
+    } else return res.status(400).json({ message: 'Incomplete data' });
+});
+
+// Remove user from team
+teams.delete('/:project_id/:team_id/member/:user_id', async (req, res) => {
+    const { project_id, team_id, user_id } = req.params;
+
+    let db;
     try {
-        const db = getDB(projectId);
+        db = openDB('./projects/' + project_id);
 
         db.prepare(`
             DELETE FROM teammembers
-            WHERE team_id = ? AND user_id = ?
-        `).run(teamId, userId);
+            WHERE team_id = ? AND user_id = ?;
+        `).run(team_id, user_id);
 
-        return res.status(200).json({ message: "Member removed" });
-
-    } catch (error) {
-        errorHandler(error, res);
-    }
-});
-
-// view team members
-teams.get('/:projectId/:teamId/members', async (req, res) => {
-    const { projectId, teamId } = req.params;
-
-    try {
-        const db = getDB(projectId);
-
-        const rows = db.prepare(`
-            SELECT user_id FROM teammembers WHERE team_id = ?
-        `).all(teamId);
-
-        return res.status(200).json(rows);
+        return res.status(200).json({ message: 'Member removed successfully' });
 
     } catch (error) {
-        errorHandler(error, res);
+        return errorHandler(error, res);
+
+    } finally {
+        if (db) db.close();
     }
 });
-
+//-----------------------------------------------------------------------------------------------------------
 export default teams;
