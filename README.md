@@ -1,0 +1,56 @@
+📁 proyecto-api
+│
+├── 📁 config
+│   └── db.js
+│📁 proyecto-api
+│
+├── 📁 config
+│   └── db.js
+│
+├── 📁 controllers
+│   └── authController.js
+│
+├── 📁 routes
+│   └── authRoute.js
+│
+├── .env
+├── App.js
+├── package.json
+└── README.md
+
+├── 📁 controllers
+│   └── authController.js
+│
+├── 📁 routes
+│   └── authRoute.js
+│
+├── .env
+├── App.js
+├── package.json
+└── README.md
+
+Node.js
+ (versión 18 o superior)
+Un cliente como MySQL
+------------------------
+BD creada y crear dependencias: 
+npm init -y
+npm install express mysql2 dotenv bcryptjs jsonwebtoken
+
+Estructura:
+config/db.js
+controllers/authController.js
+routes/authRoute.js
+.env
+App.js
+
+En el archivo .env configurar las variables a tu entorno
+JWT_SECRET=tu_clave_secreta
+PORT=3000
+DB_HOST=localhost
+DB_USER=root
+DB_PASS=
+DB_NAME=prueba
+
+Ejecutar el servidor.
+
