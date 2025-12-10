@@ -8,27 +8,16 @@ const tasks = express.Router();
 // Create task
 tasks.post('/:project_id', async (req, res) => {
     const { project_id } = req.params;
-<<<<<<< HEAD
     const { module_id, title, description, priority, status, user_ids } = req.body;
-=======
-    // NOTA: Se asume que la tabla tasks en SQLite ahora tiene el campo due_date.
-    const { module_id, title, description, priority, status, user_ids, due_date } = req.body; 
->>>>>>> elMakeo
 
     if (project_id && title) {
         let db;
         try {
             db = openDB('./projects/' + project_id);
             db.prepare(`
-<<<<<<< HEAD
                 INSERT INTO tasks (module_id, title, description, priority, status, user_ids)
                 VALUES (?, ?, ?, ?, ?, ?);
             `).run(module_id || null, title, description || "", priority || "", status || "pending", user_ids || null);
-=======
-                INSERT INTO tasks (module_id, title, description, priority, status, user_ids, due_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
-            `).run(module_id || null, title, description || "", priority || "", status || "pending", user_ids || null, due_date || null); // due_date añadido
->>>>>>> elMakeo
 
             return res.status(201).json({ message: 'Task created successfully' });
 
@@ -80,12 +69,7 @@ tasks.get('/:project_id/:task_id', async (req, res) => {
 // Update task
 tasks.put('/:project_id/:task_id', async (req, res) => {
     const { project_id, task_id } = req.params;
-<<<<<<< HEAD
-    const { module_id, title, description, priority, status, user_ids } = req.body;
-=======
-    // NOTA: Se asume que la tabla tasks en SQLite ahora tiene el campo due_date.
-    const { module_id, title, description, priority, status, user_ids, due_date } = req.body; 
->>>>>>> elMakeo
+    const { module_id, title, description, priority, status, user_ids, due_date } = req.body; // include due_date
 
     if (title && status) {
         let db;
@@ -98,15 +82,9 @@ tasks.put('/:project_id/:task_id', async (req, res) => {
 
             db.prepare(`
                 UPDATE tasks 
-<<<<<<< HEAD
-                SET module_id = ?, title = ?, description = ?, priority = ?, status = ?, user_ids = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?;
-            `).run(module_id, title, description, priority, status, user_ids, task_id);
-=======
                 SET module_id = ?, title = ?, description = ?, priority = ?, status = ?, user_ids = ?, due_date = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?;
-            `).run(module_id, title, description, priority, status, user_ids, due_date, task_id); // due_date añadido
->>>>>>> elMakeo
+            `).run(module_id || null, title, description || "", priority || "", status, user_ids || null, due_date || null, task_id);
 
             return res.status(200).json({ message: 'Task updated successfully' });
 
@@ -119,11 +97,7 @@ tasks.put('/:project_id/:task_id', async (req, res) => {
     } else return res.status(400).json({ message: "Incomplete data" });
 });
 
-<<<<<<< HEAD
 // Update task status
-=======
-// Update task status (Requerimiento funcional: Actualizar Progreso de Tarea)
->>>>>>> elMakeo
 tasks.patch('/:project_id/:task_id/status', async (req, res) => {
     const { project_id, task_id } = req.params;
     const { status } = req.body;
