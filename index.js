@@ -14,7 +14,6 @@ import modules from './routes/Sprints.js';
 import notifications from './routes/notifications.js';
 
 
-
 // Middleware
 import auth from './middleware/tokenAuth.js';
 
